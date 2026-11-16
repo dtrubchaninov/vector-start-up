@@ -1,0 +1,13 @@
+{% if page_obj.has_other_pages %}
+<nav class="pagination" aria-label="Навигация по страницам">
+  <span>Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+  <div class="row-actions">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&category={{ selected_category }}&status={{ selected_status }}&sort={{ sort }}">Назад</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&category={{ selected_category }}&status={{ selected_status }}&sort={{ sort }}">Вперёд</a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}

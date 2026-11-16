@@ -1,0 +1,104 @@
+<aside class="sidebar" aria-label="Боковая панель">
+  <div class="sidebar-brand">
+    <a href="{% url 'dashboard' %}" class="brand-wordmark">VectorStartUp</a>
+    <label for="nav-drawer-toggle" class="sidebar-close-btn" aria-label="Закрыть меню">&times;</label>
+  </div>
+
+  {% if user_companies %}
+  <div class="company-switcher">
+    <div class="switcher-caption">Активная компания</div>
+    <details class="company-dropdown">
+      <summary class="company-dropdown-trigger">
+        <span class="company-dropdown-name">
+          {% if active_company %}{{ active_company.name }}{% else %}Выбрать компанию{% endif %}
+        </span>
+        {% if active_company %}
+          <span class="company-dropdown-stage">{{ active_company.get_stage_display }}</span>
+        {% endif %}
+      </summary>
+      <div class="company-dropdown-menu">
+        {% for comp in user_companies %}
+          <form method="post" action="{% url 'company_switch' comp.id %}" class="company-option-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="company-option-btn {% if active_company and comp.id == active_company.id %}is-current{% endif %}">
+              <span>{{ comp.name }}</span>
+              <span class="company-option-stage">{{ comp.get_stage_display }}</span>
+            </button>
+          </form>
+        {% endfor %}
+        <a href="{% url 'company_create' %}" class="company-option-add">+ Зарегистрировать компанию</a>
+      </div>
+    </details>
+  </div>
+  {% endif %}
+
+  <nav class="sidebar-nav" aria-label="Основная навигация">
+    <div class="nav-section-label">Обзор</div>
+    <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      Дашборд
+    </a>
+    <a href="{% url 'kpi_list' %}" class="nav-link {% if 'kpi' in request.resolver_match.url_name %}active{% endif %}">
+      Целевые KPI
+    </a>
+    <a href="{% url 'investor_report' %}" class="nav-link {% if request.resolver_match.url_name == 'investor_report' %}active{% endif %}">
+      Отчёт инвесторам
+    </a>
+
+    <div class="nav-section-label">Выручка и рост</div>
+    <a href="{% url 'sales_pipeline' %}" class="nav-link {% if 'sales' in request.resolver_match.url_name or 'deal' in request.resolver_match.url_name %}active{% endif %}">
+      CRM-воронка продаж
+    </a>
+    <a href="{% url 'invoice_list' %}" class="nav-link {% if 'invoice' in request.resolver_match.url_name %}active{% endif %}">
+      Счета и дебиторка
+    </a>
+    <a href="{% url 'experiment_list' %}" class="nav-link {% if 'experiment' in request.resolver_match.url_name %}active{% endif %}">
+      Гипотезы (ICE)
+    </a>
+
+    <div class="nav-section-label">Финансы и капитал</div>
+    <a href="{% url 'finance_simulator' %}" class="nav-link {% if request.resolver_match.url_name == 'finance_simulator' %}active{% endif %}">
+      Финмодель и Runway
+    </a>
+    <a href="{% url 'budget_list' %}" class="nav-link {% if 'budget' in request.resolver_match.url_name %}active{% endif %}">
+      План бюджета
+    </a>
+    <a href="{% url 'expense_list' %}" class="nav-link {% if 'expense' in request.resolver_match.url_name %}active{% endif %}">
+      Учёт расходов
+    </a>
+    <a href="{% url 'cap_table' %}" class="nav-link {% if 'cap_table' in request.resolver_match.url_name or 'equity_holder' in request.resolver_match.url_name %}active{% endif %}">
+      Cap Table и вестинг
+    </a>
+    <a href="{% url 'ventures_overview' %}" class="nav-link {% if 'venture' in request.resolver_match.url_name or 'investor' in request.resolver_match.url_name or 'round' in request.resolver_match.url_name or 'allocation' in request.resolver_match.url_name %}active{% endif %}">
+      Венчуры и раунды
+    </a>
+
+    <div class="nav-section-label">Стратегия и команда</div>
+    <a href="{% url 'roadmap_list' %}" class="nav-link {% if 'roadmap' in request.resolver_match.url_name or 'milestone' in request.resolver_match.url_name %}active{% endif %}">
+      Дорожная карта
+    </a>
+    <a href="{% url 'data_room_list' %}" class="nav-link {% if 'data_room' in request.resolver_match.url_name %}active{% endif %}">
+      Data Room
+    </a>
+    <a href="{% url 'task_list' %}" class="nav-link {% if 'task' in request.resolver_match.url_name %}active{% endif %}">
+      Командные задачи
+    </a>
+    <a href="{% url 'employee_list' %}" class="nav-link {% if 'employee' in request.resolver_match.url_name %}active{% endif %}">
+      Сотрудники и ФОТ
+    </a>
+    <a href="{% url 'company_list' %}" class="nav-link {% if 'company' in request.resolver_match.url_name %}active{% endif %}">
+      Мои компании
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-meta">
+      <div class="user-name">{{ request.user.get_full_name|default:request.user.email|default:request.user.username }}</div>
+      <div class="user-handle">{{ request.user.email|default:request.user.username }}</div>
+    </div>
+    <form method="post" action="{% url 'logout' %}" class="inline-form">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">Выйти</button>
+    </form>
+  </div>
+</aside>

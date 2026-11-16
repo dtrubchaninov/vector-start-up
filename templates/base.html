@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VectorStartUp{% endblock %} - Платформа управления стартапами</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <input type="checkbox" id="nav-drawer-toggle" class="sr-toggle" aria-hidden="true">
+  <label for="nav-drawer-toggle" class="sidebar-backdrop" aria-hidden="true"></label>
+
+  <div class="app-shell">
+    {% include 'includes/_sidebar.html' %}
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <label for="nav-drawer-toggle" class="mobile-menu-btn" role="button" tabindex="0">Меню</label>
+          <div class="breadcrumb">
+            <span>{% if active_company %}{{ active_company.name }}{% else %}Рабочее пространство{% endif %}</span>
+            <span aria-hidden="true">/</span>
+            <strong>{% block breadcrumb %}Дашборд{% endblock %}</strong>
+          </div>
+        </div>
+
+        <form method="get" action="{% url 'global_search' %}" class="topbar-search" role="search">
+          <input
+            type="search"
+            name="q"
+            value="{{ request.GET.q|default:'' }}"
+            placeholder="Поиск по задачам, сделкам, счетам, KPI..."
+            aria-label="Поиск по компании"
+            class="topbar-search-input"
+          >
+        </form>
+
+        <div class="topbar-actions">
+          {% block topbar_action %}
+            <a href="{% url 'investor_report' %}" class="btn btn-secondary">Отчёт инвесторам</a>
+            <a href="{% url 'company_create' %}" class="btn btn-primary">Новая компания</a>
+          {% endblock %}
+        </div>
+      </header>
+
+      <main class="page-content">
+        {% include 'includes/_messages.html' %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

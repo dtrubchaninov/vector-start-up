@@ -1,0 +1,31 @@
+{% if form.non_field_errors %}
+  <div class="alert alert-error" style="margin-bottom: 16px;">
+    <div>
+      {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="form-grid">
+  {% for field in form %}
+    <div class="form-group {% if field.widget_type == 'textarea' or field.name == 'title' or field.name == 'name' or field.name == 'bucket_name' or field.name == 'target_milestone' %}full{% endif %}">
+      {% if field.widget_type == 'checkbox' %}
+        <div class="form-checkbox-row">
+          {{ field }}
+          <label for="{{ field.id_for_label }}" style="margin: 0;">{{ field.label }}</label>
+        </div>
+      {% else %}
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+        {{ field }}
+      {% endif %}
+      {% if field.help_text %}
+        <small style="color: var(--ink-muted); font-size: 12px;">{{ field.help_text }}</small>
+      {% endif %}
+      {% if field.errors %}
+        <ul class="form-errors">
+          {% for err in field.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>

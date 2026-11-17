@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Целевые KPI{% endblock %}
+{% block breadcrumb %}Целевые KPI{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'kpi_create' %}" class="btn btn-primary">Добавить KPI</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Отслеживание KPI компании</h1>
+    <p class="page-subtitle">Целевые метрики выручки, роста, продукта и юнит-экономики с историей замеров.</p>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <div class="segmented" role="navigation" aria-label="Фильтр по группам KPI">
+    <a href="{% url 'kpi_list' %}" class="{% if not selected_category %}active{% endif %}">Все группы</a>
+    {% for code, label in categories %}
+      <a href="?category={{ code }}" class="{% if selected_category == code %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if kpi_cards %}
+  <div class="grid-2">
+    {% for entry in kpi_cards %}
+      {% with m=entry.metric %}
+      <article class="panel">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
+          <div>
+            <a href="{% url 'kpi_detail' m.id %}" style="font-size: 16px; font-weight: 700; color: var(--ink-primary);">{{ m.name }}</a>
+            <div class="meta-inline" style="margin-top: 3px;">
+              <span>{{ m.get_category_display }}</span>
+              <span aria-hidden="true">&middot;</span>
+              <span>{{ m.period_label }}</span>
+              {% if m.owner %}
+                <span aria-hidden="true">&middot;</span>
+                <span>{{ m.owner.full_name }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <span class="state-{{ m.health_state }}" style="font-size: 12.5px; white-space: nowrap;">{{ m.health_label }}</span>
+        </div>
+
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 12px 0 8px;">
+          <div class="kpi-value">{{ m.current_value|format_metric:m.unit }}</div>
+          <div class="num" style="font-size: 13px; color: var(--ink-muted);">
+            Цель: {{ m.target_value|format_metric:m.unit }} ({{ m.progress_percent }}%)
+          </div>
+        </div>
+
+        <div class="bar-track" style="margin-bottom: 14px;">
+          <div class="bar-fill {{ m.health_state }}" style="width: {{ m.progress_bar_width }}%;"></div>
+        </div>
+
+        {% if entry.sparkline_points %}
+          <svg class="sparkline-svg" viewBox="0 0 260 52" aria-label="Динамика {{ m.name }}">
+            <polyline fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ entry.sparkline_points }}" />
+          </svg>
+        {% endif %}
+
+        <div class="row-actions" style="justify-content: flex-start; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-hairline);">
+          <a href="{% url 'kpi_detail' m.id %}" class="btn btn-secondary btn-sm">Зафиксировать замер</a>
+          <a href="{% url 'kpi_edit' m.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+          {% url 'kpi_delete' m.id as del_url %}
+          {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить KPI-метрику?" %}
+        </div>
+      </article>
+      {% endwith %}
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>KPI-метрики не найдены</h3>
+    <p>Добавьте ключевые показатели MRR, CAC, Churn или активности клиентов.</p>
+    <a href="{% url 'kpi_create' %}" class="btn btn-primary">Создать первую метрику</a>
+  </div>
+{% endif %}
+{% endblock %}

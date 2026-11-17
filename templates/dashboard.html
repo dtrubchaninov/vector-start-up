@@ -1,0 +1,312 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Дашборд - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Дашборд{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'investor_report' %}" class="btn btn-secondary">Отчёт инвесторам</a>
+  <a href="{% url 'expense_create' %}" class="btn btn-primary">Записать расход</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ company.name }}</h1>
+    <div class="meta-inline" style="margin-top: 4px;">
+      <span>{{ company.industry }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Стадия {{ company.get_stage_display }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Команда: <strong class="num">{{ active_employees_count }}</strong> чел.</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Целевой MRR: <strong class="num">{{ company.target_mrr|money:company.currency_symbol }}</strong></span>
+    </div>
+  </div>
+  <div class="row-actions">
+    <a href="{% url 'finance_simulator' %}" class="btn btn-secondary">Финмодель и Runway</a>
+    <a href="{% url 'deal_create' %}" class="btn btn-secondary">Новая сделка</a>
+    <a href="{% url 'task_create' %}" class="btn btn-secondary">Новая задача</a>
+  </div>
+</div>
+
+{% if founder_alerts %}
+<section aria-label="Фокус основателя" style="margin-bottom: 22px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+    <h2 style="font-size: 14.5px; font-weight: 700;">Фокус основателя</h2>
+    <span style="font-size: 12px; color: var(--ink-muted);">Приоритетные сигналы по компании</span>
+  </div>
+  <div class="alerts-grid">
+    {% for alert in founder_alerts %}
+      <div class="focus-card focus-card-{{ alert.severity }}">
+        <div>
+          <div class="meta-inline" style="margin-bottom: 3px;">
+            <span class="state-{{ alert.severity }}">{{ alert.severity_label }}</span>
+          </div>
+          <div class="focus-title">{{ alert.title }}</div>
+          <div class="focus-detail">{{ alert.detail }}</div>
+        </div>
+        <a href="{% url alert.url_name %}" class="btn btn-secondary btn-sm">{{ alert.action_label }}</a>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Row 1: 4-Column Executive Financial Strip -->
+<section class="kpi-strip" aria-label="Ключевые финансовые показатели">
+  <div class="kpi-box">
+    <div class="kpi-label">Свободные средства (Cash)</div>
+    <div class="kpi-value">{{ cash_on_hand|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">
+      Burn: <span class="num">{{ monthly_burn|money_compact:company.currency_symbol }}</span>/мес &middot;
+      Runway:
+      {% if runway_months is not None %}
+        <span class="num {% if runway_months < 6 %}state-risk{% elif runway_months < 12 %}state-warn{% else %}state-good{% endif %}">{{ runway_months }} мес.</span>
+      {% else %}
+        <span>Без ограничений</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Воронка продаж (CRM)</div>
+    <div class="kpi-value">{{ deal_metrics.weighted_pipeline|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">
+      Взвешенный прогноз &middot; <span class="num">{{ deal_metrics.open_deals_count }}</span> активн. &middot; Win Rate <span class="num">{{ deal_metrics.win_rate_pct }}%</span>
+    </div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Счета и дебиторка</div>
+    <div class="kpi-value">{{ invoice_metrics.receivable_total|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">
+      Оплачено: <span class="num">{{ invoice_metrics.paid_total|money_compact:company.currency_symbol }}</span> &middot;
+      {% if invoice_metrics.overdue_count > 0 %}
+        <span class="state-risk">Просрочено: {{ invoice_metrics.overdue_count }}</span>
+      {% else %}
+        <span class="state-good">Без просрочек</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Привлечено инвестиций</div>
+    <div class="kpi-value">{{ total_raised|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">
+      В пайплайне: <span class="num">{{ pipeline_raised|money_compact:company.currency_symbol }}</span> &middot; Data Room: <span class="num">{{ data_room_readiness.readiness_pct }}%</span>
+    </div>
+  </div>
+</section>
+
+<!-- Row 2: Budget Plan vs Actual + Cap Table & Allocations -->
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">План / факт по статьям бюджета</h2>
+      <div class="meta-inline">
+        <span class="num">{{ budget_utilization_pct }}% освоено</span>
+        <a href="{% url 'budget_list' %}" class="btn btn-ghost btn-sm">Все статьи</a>
+      </div>
+    </div>
+
+    {% if budget_rows %}
+      <div class="stack-14">
+        {% for row in budget_rows %}
+          <div>
+            <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 13px;">
+              <span style="font-weight: 600;">{{ row.item.name }}</span>
+              <span class="num" style="white-space: nowrap;">
+                {{ row.spent|money_compact:company.currency_symbol }} / {{ row.item.planned_amount|money_compact:company.currency_symbol }}
+                <span class="state-{{ row.state }}">({{ row.pct }}%)</span>
+              </span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill {{ row.state }}" style="width: {{ row.bar_width }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">Статьи бюджета пока не заданы. <a href="{% url 'budget_create' %}">Создать первую статью</a>.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Структура капитала (Cap Table) и транши</h2>
+      <div class="row-actions">
+        <a href="{% url 'cap_table' %}" class="btn btn-ghost btn-sm">Cap Table</a>
+        <a href="{% url 'ventures_overview' %}" class="btn btn-ghost btn-sm">Раунды</a>
+      </div>
+    </div>
+
+    <div class="meta-inline" style="justify-content: space-between;">
+      <span>Основатели: <strong class="num">{{ founders_equity }}%</strong></span>
+      <span>Инвесторы: <strong class="num">{{ investors_equity }}%</strong></span>
+      <span>Опционы (ESOP): <strong class="num">{{ esop_equity }}%</strong></span>
+    </div>
+    <div class="cap-bar" role="img" aria-label="Структура долей компании">
+      <div class="cap-seg-founders" style="width: {{ founders_equity|clamp_pct }}%;"></div>
+      <div class="cap-seg-investors" style="width: {{ investors_equity|clamp_pct }}%;"></div>
+      <div class="cap-seg-esop" style="width: {{ esop_equity|clamp_pct }}%;"></div>
+    </div>
+
+    <h3 style="font-size: 13.5px; margin: 18px 0 10px; color: var(--ink-secondary);">Распределение привлечённых средств</h3>
+    {% if allocations %}
+      <div class="stack-14" style="gap: 12px;">
+        {% for alloc in allocations %}
+          <div>
+            <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 4px;">
+              <span>{{ alloc.bucket_name }}</span>
+              <span class="num">{{ alloc.spent_amount|money_compact:company.currency_symbol }} / {{ alloc.allocated_amount|money_compact:company.currency_symbol }}</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ alloc.utilization_pct|clamp_pct }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">Распределение инвестиций не настроено. <a href="{% url 'allocation_create' %}">Добавить направление</a>.</p>
+    {% endif %}
+  </section>
+</div>
+
+<!-- Row 3: Key KPIs + Priority Tasks -->
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Целевые показатели KPI</h2>
+      <a href="{% url 'kpi_list' %}" class="btn btn-ghost btn-sm">Все KPI</a>
+    </div>
+
+    {% if kpis %}
+      <div class="stack-14">
+        {% for kpi in kpis %}
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px;">
+              <a href="{% url 'kpi_detail' kpi.id %}" style="font-weight: 600; color: var(--ink-primary);">{{ kpi.name }}</a>
+              <span class="num" style="font-size: 13px;">
+                {{ kpi.current_value|format_metric:kpi.unit }} / {{ kpi.target_value|format_metric:kpi.unit }}
+              </span>
+            </div>
+            <div class="bar-track" style="margin-bottom: 4px;">
+              <div class="bar-fill {{ kpi.health_state }}" style="width: {{ kpi.progress_bar_width }}%;"></div>
+            </div>
+            <div class="meta-inline">
+              <span class="state-{{ kpi.health_state }}">{{ kpi.health_label }} ({{ kpi.progress_percent }}%)</span>
+              <span aria-hidden="true">&middot;</span>
+              <span>{{ kpi.period_label }}</span>
+              {% if kpi.owner %}
+                <span aria-hidden="true">&middot;</span>
+                <span>{{ kpi.owner.full_name }}</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">KPI ещё не настроены. <a href="{% url 'kpi_create' %}">Добавить метрику</a>.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Приоритетные задачи команды</h2>
+      <div class="meta-inline">
+        <span class="num">{{ tasks_done }} / {{ tasks_total }} готово</span>
+        <a href="{% url 'task_list' %}" class="btn btn-ghost btn-sm">Доска задач</a>
+      </div>
+    </div>
+
+    {% if urgent_tasks %}
+      <div>
+        {% for task in urgent_tasks %}
+          <div class="activity-item">
+            <div>
+              <a href="{% url 'task_detail' task.id %}" style="font-weight: 600; color: var(--ink-primary);">{{ task.title }}</a>
+              <div class="meta-inline" style="margin-top: 2px;">
+                <span>{{ task.get_status_display }}</span>
+                <span aria-hidden="true">&middot;</span>
+                <span class="{% if task.priority == 'CRITICAL' %}state-risk{% elif task.priority == 'HIGH' %}state-warn{% endif %}">{{ task.get_priority_display }}</span>
+                {% if task.assignee %}
+                  <span aria-hidden="true">&middot;</span>
+                  <span>{{ task.assignee.full_name }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div style="text-align: right; white-space: nowrap; font-size: 12.5px;">
+              {% if task.due_date %}
+                <span class="num {% if task.is_overdue %}state-risk{% endif %}">{{ task.due_date|date:'d.m.Y' }}</span>
+              {% else %}
+                <span style="color: var(--ink-muted);">Без срока</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">Открытых задач нет. <a href="{% url 'task_create' %}">Создать задачу</a>.</p>
+    {% endif %}
+  </section>
+</div>
+
+<!-- Row 4: Active Roadmap Milestones + Activity Log -->
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Ключевые вехи дорожной карты</h2>
+      <a href="{% url 'roadmap_list' %}" class="btn btn-ghost btn-sm">Весь Roadmap</a>
+    </div>
+    {% if active_milestones %}
+      <div class="stack-14">
+        {% for ms in active_milestones %}
+          <div>
+            <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 13px;">
+              <span style="font-weight: 600;">{{ ms.title }}</span>
+              <span class="num">{{ ms.progress_percent }}%</span>
+            </div>
+            <div class="bar-track" style="margin-bottom: 4px;">
+              <div class="bar-fill {% if ms.status == 'AT_RISK' %}risk{% elif ms.progress_percent >= 70 %}good{% endif %}" style="width: {{ ms.progress_percent }}%;"></div>
+            </div>
+            <div class="meta-inline">
+              <span>{{ ms.quarter }}</span>
+              <span aria-hidden="true">&middot;</span>
+              <span>{{ ms.get_category_display }}</span>
+              <span aria-hidden="true">&middot;</span>
+              <span class="{% if ms.status == 'AT_RISK' %}state-risk{% endif %}">{{ ms.get_status_display }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">Активных вех пока нет. <a href="{% url 'milestone_create' %}">Добавить веху</a>.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Журнал событий компании</h2>
+      <span style="font-size: 12.5px; color: var(--ink-muted);">Последние операции</span>
+    </div>
+    {% if recent_activities %}
+      <div>
+        {% for act in recent_activities %}
+          <div class="activity-item">
+            <div>
+              <strong style="font-size: 12.5px; color: var(--ink-secondary);">{{ act.action_type }}</strong>
+              <span aria-hidden="true" style="color: var(--ink-muted);">&middot;</span>
+              <span>{{ act.summary }}</span>
+            </div>
+            <span class="num" style="font-size: 12px; color: var(--ink-muted); white-space: nowrap;">
+              {{ act.created_at|date:'d.m.Y H:i' }}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted);">Журнал событий пока пуст.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

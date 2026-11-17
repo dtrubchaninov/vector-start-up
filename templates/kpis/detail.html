@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}{{ metric.name }}{% endblock %}
+{% block breadcrumb %}KPI / {{ metric.name }}{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'kpi_edit' metric.id %}" class="btn btn-primary">Настроить метрику</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ metric.name }}</h1>
+    <div class="meta-inline" style="margin-top: 4px;">
+      <span>{{ metric.get_category_display }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Период: {{ metric.period_label }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span class="state-{{ metric.health_state }}">{{ metric.health_label }} ({{ metric.progress_percent }}%)</span>
+    </div>
+  </div>
+  <a href="{% url 'kpi_list' %}" class="btn btn-secondary">Все KPI</a>
+</div>
+
+<section class="kpi-strip" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+  <div class="kpi-box">
+    <div class="kpi-label">Текущее значение</div>
+    <div class="kpi-value">{{ metric.current_value|format_metric:metric.unit }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Целевое значение</div>
+    <div class="kpi-value">{{ metric.target_value|format_metric:metric.unit }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Достижение цели</div>
+    <div class="kpi-value state-{{ metric.health_state }}">{{ metric.progress_percent }}%</div>
+  </div>
+</section>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Динамика замеров</h2>
+    </div>
+    {% if sparkline_points %}
+      <svg class="sparkline-svg" viewBox="0 0 560 130" aria-label="График динамики {{ metric.name }}">
+        <line x1="14" y1="116" x2="546" y2="116" stroke="#e2e8f0" stroke-width="1" />
+        <line x1="14" y1="65" x2="546" y2="65" stroke="#f1f5f9" stroke-width="1" />
+        <polyline fill="none" stroke="#1d4ed8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="{{ sparkline_points }}" />
+      </svg>
+    {% else %}
+      <p style="color: var(--ink-muted);">Добавьте хотя бы один замер для построения графика.</p>
+    {% endif %}
+
+    {% if metric.description %}
+      <p style="margin-top: 14px; font-size: 13px; color: var(--ink-muted);">{{ metric.description }}</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Зафиксировать новый замер</h2>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {% for field in entry_form %}
+        <div class="form-group">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}
+            <ul class="form-errors">
+              {% for err in field.errors %}<li>{{ err }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">Записать замер</button>
+    </form>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">История замеров</h2>
+  </div>
+  {% if entries %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th class="text-right">Значение</th>
+          <th>Комментарий</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in entries %}
+          <tr>
+            <td class="num">{{ item.recorded_date|date:'d.m.Y' }}</td>
+            <td class="text-right num" style="font-weight: 600;">{{ item.value|format_metric:metric.unit }}</td>
+            <td>{{ item.note|default:'-' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="color: var(--ink-muted);">Замеры ещё не добавлены.</p>
+  {% endif %}
+</section>
+{% endblock %}

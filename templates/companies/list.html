@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Мои компании{% endblock %}
+{% block breadcrumb %}Компании{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'company_create' %}" class="btn btn-primary">Зарегистрировать компанию</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Рабочие пространства компаний</h1>
+    <p class="page-subtitle">Управляйте портфелем стартапов и переключайтесь между компаниями.</p>
+  </div>
+</div>
+
+{% if companies %}
+  <div class="grid-2">
+    {% for comp in companies %}
+      <article class="panel">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
+          <div>
+            <h2 style="font-size: 17px;">{{ comp.name }}</h2>
+            <div class="meta-inline" style="margin-top: 4px;">
+              <span>{{ comp.industry }}</span>
+              <span aria-hidden="true">&middot;</span>
+              <span>{{ comp.get_stage_display }}</span>
+              <span aria-hidden="true">&middot;</span>
+              <span>{{ comp.currency }}</span>
+              {% if active_company and comp.id == active_company.id %}
+                <span aria-hidden="true">&middot;</span>
+                <span class="state-good">Активна</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if comp.description %}
+          <p style="color: var(--ink-secondary); margin: 8px 0 14px; font-size: 13.5px;">{{ comp.description|truncatechars:180 }}</p>
+        {% endif %}
+
+        <div class="meta-inline" style="padding: 10px 0; border-top: 1px solid var(--border-hairline); border-bottom: 1px solid var(--border-hairline); margin-bottom: 14px;">
+          <span>Сотрудников: <strong class="num">{{ comp.employees_count }}</strong></span>
+          <span aria-hidden="true">&middot;</span>
+          <span>Задач: <strong class="num">{{ comp.tasks_count }}</strong></span>
+          <span aria-hidden="true">&middot;</span>
+          <span>Целевой MRR: <strong class="num">{{ comp.target_mrr|money_compact:comp.currency_symbol }}</strong></span>
+        </div>
+
+        <div class="row-actions" style="justify-content: flex-start;">
+          {% if not active_company or comp.id != active_company.id %}
+            <form method="post" action="{% url 'company_switch' comp.id %}" class="inline-form">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm">Выбрать активной</button>
+            </form>
+          {% else %}
+            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm">Открыть дашборд</a>
+          {% endif %}
+          <a href="{% url 'company_edit' comp.id %}" class="btn btn-secondary btn-sm">Настройки</a>
+          {% url 'company_delete' comp.id as del_url %}
+          {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить компанию и все её данные?" %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>У вас пока нет зарегистрированных компаний</h3>
+    <p>Создайте карточку стартапа, чтобы начать планировать бюджет, расходы, раунды и задачи.</p>
+    <a href="{% url 'company_create' %}" class="btn btn-primary">Зарегистрировать компанию</a>
+  </div>
+{% endif %}
+{% endblock %}

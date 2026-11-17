@@ -1,0 +1,40 @@
+{% extends 'base_auth.html' %}
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+<p class="auth-lead">Войдите по почте и паролю, чтобы управлять финансами, раундами, KPI и задачами стартапа.</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  {% if form.non_field_errors %}
+    <ul class="form-errors">
+      {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% for field in form %}
+    <div class="form-group">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <ul class="form-errors">
+          {% for err in field.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 6px;">Войти по Email</button>
+</form>
+
+<p style="margin-top: 16px; font-size: 13px; color: var(--ink-muted);">
+  Нет аккаунта? <a href="{% url 'register' %}">Зарегистрироваться по почте</a><br>
+  Уже получили код подтверждения? <a href="{% url 'verify_email' %}">Подтвердить email</a>
+</p>
+
+<div class="demo-hint">
+  <strong>Демо-аккаунт основателя:</strong><br>
+  Email: <span class="mono">alexey@vectorstart.ru</span> &middot; Пароль: <span class="mono">demo12345</span>
+</div>
+{% endblock %}

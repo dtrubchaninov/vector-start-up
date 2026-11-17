@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block breadcrumb %}{{ page_title }}{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'company_list' %}" class="btn btn-secondary">К списку компаний</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ page_title }}</h1>
+    <p class="page-subtitle">Укажите параметры стартапа, начальный остаток денежных средств и целевую выручку.</p>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% include 'includes/_form_fields.html' %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+      <a href="{% url 'company_list' %}" class="btn btn-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

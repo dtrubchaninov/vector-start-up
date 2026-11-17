@@ -1,0 +1,46 @@
+{% extends 'base_auth.html' %}
+{% block title %}Подтверждение почты{% endblock %}
+
+{% block content %}
+<p class="auth-lead">
+  Введите 6-значный код подтверждения, отправленный на вашу почту{% if pending_email %} <strong class="mono">{{ pending_email }}</strong>{% endif %}.
+  Код действует {{ ttl_minutes }} минут.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="form-errors">
+      {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% for field in form %}
+    <div class="form-group">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <ul class="form-errors">
+          {% for err in field.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 6px;">Подтвердить аккаунт</button>
+</form>
+
+<form method="post" action="{% url 'resend_verification_code' %}" style="margin-top: 12px;">
+  {% csrf_token %}
+  <input type="hidden" name="email" value="{{ form.email.value|default:pending_email }}">
+  <button type="submit" class="btn btn-secondary" style="width: 100%;">Отправить код повторно</button>
+</form>
+
+<div class="demo-hint">
+  Не пришло письмо? Проверьте папку «Спам» или нажмите «Отправить код повторно» через 30 секунд.
+</div>
+
+<p style="margin-top: 16px; font-size: 13px; color: var(--ink-muted);">
+  Ошиблись в адресе? <a href="{% url 'register' %}">Зарегистрироваться заново</a> &middot; <a href="{% url 'login' %}">Войти</a>
+</p>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends 'base_auth.html' %}
+{% block title %}Регистрация по Email{% endblock %}
+
+{% block content %}
+<p class="auth-lead">Укажите почту и пароль. Мы отправим на ваш email 6-значный код для подтверждения аккаунта.</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="form-errors">
+      {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% for field in form %}
+    <div class="form-group">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <ul class="form-errors">
+          {% for err in field.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 6px;">Получить код на почту</button>
+</form>
+
+<p style="margin-top: 16px; font-size: 13px; color: var(--ink-muted);">
+  Уже подтвердили почту? <a href="{% url 'login' %}">Войти по email и паролю</a><br>
+  Есть неподтверждённый код? <a href="{% url 'verify_email' %}">Ввести код подтверждения</a>
+</p>
+{% endblock %}

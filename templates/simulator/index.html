@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Финмодель и Runway - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Финмодель и Runway{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'investor_report' %}" class="btn btn-primary">Собрать отчёт инвесторам</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Финансовая модель и симулятор Runway</h1>
+    <p class="page-subtitle">Сценарное планирование денежного потока на {{ sim_params.months }} мес. и юнит-экономика SaaS</p>
+  </div>
+  <div class="segmented" aria-label="Готовые сценарии">
+    <a href="{% url 'finance_simulator' %}" class="{% if not active_preset %}active{% endif %}">Базовый</a>
+    <a href="{% url 'finance_simulator' %}?preset=growth" class="{% if active_preset == 'growth' %}active{% endif %}">Агрессивный рост</a>
+    <a href="{% url 'finance_simulator' %}?preset=lean" class="{% if active_preset == 'lean' %}active{% endif %}">Режим экономии</a>
+    <a href="{% url 'finance_simulator' %}?preset=round" class="{% if active_preset == 'round' %}active{% endif %}">С новым раундом</a>
+  </div>
+</div>
+
+<!-- Simulation Output KPIs -->
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Прогнозный Runway</div>
+    <div class="kpi-value">
+      {% if sim_result.runway_months %}
+        <span class="{% if sim_result.runway_months < 6 %}state-risk{% elif sim_result.runway_months < 12 %}state-warn{% else %}state-good{% endif %}">{{ sim_result.runway_months }} мес.</span>
+      {% else %}
+        <span class="state-good">&gt; {{ sim_params.months }} мес.</span>
+      {% endif %}
+    </div>
+    <div class="kpi-meta">Стартовый остаток: <span class="num">{{ cash_on_hand|money_compact:company.currency_symbol }}</span></div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Точка безубыточности</div>
+    <div class="kpi-value">
+      {% if sim_result.break_even_month %}
+        Месяц {{ sim_result.break_even_month }}
+      {% else %}
+        Вне горизонта
+      {% endif %}
+    </div>
+    <div class="kpi-meta">Минимум кассы: <span class="num">{{ sim_result.min_cash_point.ending_cash|money_compact:company.currency_symbol }}</span> ({{ sim_result.min_cash_point.label }})</div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Остаток кассы в конце срока</div>
+    <div class="kpi-value {% if sim_result.ending_cash_at_horizon < 0 %}state-risk{% else %}state-good{% endif %}">
+      {{ sim_result.ending_cash_at_horizon|money_compact:company.currency_symbol }}
+    </div>
+    <div class="kpi-meta">Через {{ sim_params.months }} мес. моделирования</div>
+  </div>
+
+  <div class="kpi-box">
+    <div class="kpi-label">Прогнозная выручка (MRR)</div>
+    <div class="kpi-value">{{ sim_result.revenue_at_horizon|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">Старт MRR: <span class="num">{{ ue_metrics.mrr|money_compact:company.currency_symbol }}</span> &middot; +{{ sim_params.growth }}%/мес</div>
+  </div>
+</section>
+
+<!-- Main Simulation Split: Scenario Parameters Form + Pure Server-Side SVG Charts -->
+<div class="grid-sim">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Параметры сценария</h2>
+    </div>
+    <form method="get" action="{% url 'finance_simulator' %}">
+      <div class="form-group">
+        <label for="sim-growth">Рост выручки MoM (%)</label>
+        <input id="sim-growth" type="number" step="0.5" name="growth" value="{{ sim_params.growth }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-hires">Плановый найм (чел.)</label>
+        <input id="sim-hires" type="number" min="0" max="50" name="hires" value="{{ sim_params.hires }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-hire-cost">Средняя стоимость найма / мес ({{ company.currency_symbol }})</label>
+        <input id="sim-hire-cost" type="number" step="10000" min="0" name="hire_cost" value="{{ sim_params.hire_cost }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-hire-month">Месяц выхода новых сотрудников</label>
+        <input id="sim-hire-month" type="number" min="1" max="24" name="hire_month" value="{{ sim_params.hire_month }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-marketing">Изменение базовых расходов (%)</label>
+        <input id="sim-marketing" type="number" min="-70" max="200" name="marketing" value="{{ sim_params.marketing }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-funding">Привлечение раунда ({{ company.currency_symbol }})</label>
+        <input id="sim-funding" type="number" step="500000" min="0" name="funding" value="{{ sim_params.funding }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-funding-month">Месяц поступления раунда</label>
+        <input id="sim-funding-month" type="number" min="1" max="24" name="funding_month" value="{{ sim_params.funding_month }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-months">Горизонт прогноза (мес.)</label>
+        <select id="sim-months" name="months" class="form-select">
+          <option value="12" {% if sim_params.months == 12 %}selected{% endif %}>12 месяцев</option>
+          <option value="18" {% if sim_params.months == 18 %}selected{% endif %}>18 месяцев</option>
+          <option value="24" {% if sim_params.months == 24 %}selected{% endif %}>24 месяца</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Пересчитать прогноз</button>
+    </form>
+  </section>
+
+  <div class="stack-20">
+    <!-- Pure Server-Side SVG Chart: Cash Balance -->
+    <section class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Динамика денежного остатка (Cash Balance)</h2>
+        <span style="font-size: 12px; color: var(--ink-muted);">Пунктир - нулевая отметка</span>
+      </div>
+      <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" class="chart-svg" role="img" aria-label="График прогноза остатка средств">
+        {% for g in chart.grid_lines %}
+          <line x1="{{ chart.pad_l }}" y1="{{ g.y }}" x2="{{ chart.plot_right }}" y2="{{ g.y }}" stroke="#e2e8f0" stroke-width="1" />
+          <text x="{{ chart.label_x }}" y="{{ g.label_y }}" text-anchor="end" font-size="11" fill="#64748b" font-family="JetBrains Mono, monospace">{{ g.label }}</text>
+        {% endfor %}
+        <line x1="{{ chart.pad_l }}" y1="{{ chart.zero_y }}" x2="{{ chart.plot_right }}" y2="{{ chart.zero_y }}" stroke="#b91c1c" stroke-width="1" stroke-dasharray="4 4" />
+        <polygon points="{{ chart.cash_area }}" fill="#1d4ed8" fill-opacity="0.09" />
+        <polyline points="{{ chart.cash_polyline }}" fill="none" stroke="#1d4ed8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+        {% for d in chart.dots %}
+          <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{% if d.funding %}5{% else %}3{% endif %}" fill="{% if d.negative %}#b91c1c{% elif d.funding %}#15803d{% else %}#1d4ed8{% endif %}">
+            <title>{{ d.label }}: {{ d.value }}</title>
+          </circle>
+        {% endfor %}
+        {% for xl in chart.x_labels %}
+          <text x="{{ xl.x }}" y="{{ chart.x_label_y }}" text-anchor="middle" font-size="11" fill="#64748b">{{ xl.text }}</text>
+        {% endfor %}
+      </svg>
+    </section>
+
+    <!-- Pure Server-Side SVG Chart: Revenue vs Burn -->
+    <section class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Выручка vs Расходы по месяцам</h2>
+        <div class="meta-inline">
+          <span class="state-good">Выручка (MRR)</span>
+          <span aria-hidden="true">&middot;</span>
+          <span class="state-risk">Расходы (Burn)</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" class="chart-svg" role="img" aria-label="Сравнение выручки и расходов">
+        {% for g in chart.rb_grid %}
+          <line x1="{{ chart.pad_l }}" y1="{{ g.y }}" x2="{{ chart.plot_right }}" y2="{{ g.y }}" stroke="#e2e8f0" stroke-width="1" />
+          <text x="{{ chart.label_x }}" y="{{ g.label_y }}" text-anchor="end" font-size="11" fill="#64748b" font-family="JetBrains Mono, monospace">{{ g.label }}</text>
+        {% endfor %}
+        <polyline points="{{ chart.exp_polyline }}" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="5 3" />
+        <polyline points="{{ chart.rev_polyline }}" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linejoin="round" />
+        {% for xl in chart.x_labels %}
+          <text x="{{ xl.x }}" y="{{ chart.x_label_y }}" text-anchor="middle" font-size="11" fill="#64748b">{{ xl.text }}</text>
+        {% endfor %}
+      </svg>
+    </section>
+  </div>
+</div>
+
+<!-- SaaS Unit Economics Editor & Metrics -->
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Unit-экономика SaaS</h2>
+      <span class="state-{{ ue_metrics.health_state }}">{{ ue_metrics.health_label }}</span>
+    </div>
+    <div class="grid-2" style="margin-bottom: 0; gap: 14px;">
+      <div class="kpi-box">
+        <div class="kpi-label">MRR / ARR</div>
+        <div class="kpi-value">{{ ue_metrics.mrr|money_compact:company.currency_symbol }}</div>
+        <div class="kpi-meta">ARR: <span class="num">{{ ue_metrics.arr|money_compact:company.currency_symbol }}</span></div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">LTV / CAC</div>
+        <div class="kpi-value {% if ue_metrics.ltv_cac_ratio >= 3 %}state-good{% elif ue_metrics.ltv_cac_ratio < 1.5 %}state-risk{% else %}state-warn{% endif %}">{{ ue_metrics.ltv_cac_ratio }}x</div>
+        <div class="kpi-meta">LTV: <span class="num">{{ ue_metrics.ltv|money_compact:company.currency_symbol }}</span></div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">Окупаемость CAC (Payback)</div>
+        <div class="kpi-value">{{ ue_metrics.cac_payback_months }} мес.</div>
+        <div class="kpi-meta">Ориентир B2B SaaS: &le; 12 мес.</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">Rule of 40</div>
+        <div class="kpi-value {% if ue_metrics.rule_of_40 >= 40 %}state-good{% elif ue_metrics.rule_of_40 < 15 %}state-risk{% else %}state-warn{% endif %}">{{ ue_metrics.rule_of_40 }}%</div>
+        <div class="kpi-meta">Рост {{ ue_metrics.annualized_growth_pct }}% + маржа {{ ue_metrics.profit_margin_pct }}%</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Обновить входные данные Unit-экономики</h2>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid">
+        {% for field in ue_form %}
+          <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<ul class="form-errors">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="form-actions" style="margin-top: 8px; padding-top: 12px;">
+        <button type="submit" class="btn btn-primary">Сохранить параметры</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<!-- Monthly Cashflow Forecast Table -->
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">Помесячный прогноз денежного потока</h2>
+  </div>
+  <div class="table-wrap" style="border: none;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Месяц</th>
+          <th class="text-right">Выручка</th>
+          <th class="text-right">Расходы</th>
+          <th class="text-right">Инвестиции</th>
+          <th class="text-right">Чистый поток</th>
+          <th class="text-right">Остаток кассы</th>
+          <th>Состояние</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pt in sim_result.points %}
+          <tr>
+            <td style="font-weight: 600;">{{ pt.label }}</td>
+            <td class="text-right num">{{ pt.revenue|money:company.currency_symbol }}</td>
+            <td class="text-right num">{{ pt.expenses|money:company.currency_symbol }}</td>
+            <td class="text-right num">{% if pt.funding_inflow %}<span class="state-good">+{{ pt.funding_inflow|money:company.currency_symbol }}</span>{% else %}&mdash;{% endif %}</td>
+            <td class="text-right num {% if pt.net_cashflow >= 0 %}state-good{% else %}state-risk{% endif %}">{{ pt.net_cashflow|money:company.currency_symbol }}</td>
+            <td class="text-right num {% if pt.ending_cash <= 0 %}state-risk{% endif %}" style="font-weight: 600;">{{ pt.ending_cash|money:company.currency_symbol }}</td>
+            <td>
+              {% if pt.ending_cash <= 0 %}
+                <span class="state-risk">Кассовый разрыв</span>
+              {% elif pt.is_break_even %}
+                <span class="state-good">Прибыльность</span>
+              {% else %}
+                <span style="color: var(--ink-muted);">Инвестиционный режим</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

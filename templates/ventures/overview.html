@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Венчуры и инвестиции{% endblock %}
+{% block breadcrumb %}Венчуры и инвестиции{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'round_create' %}" class="btn btn-primary">Новый раунд</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Венчурные раунды, инвесторы и распределение капитала</h1>
+    <p class="page-subtitle">Учёт привлечённых инвестиций, структуры долей (Cap Table) и целевых траншей.</p>
+  </div>
+  <div class="row-actions">
+    <a href="{% url 'investor_create' %}" class="btn btn-secondary">Добавить инвестора</a>
+    <a href="{% url 'allocation_create' %}" class="btn btn-secondary">Распределить транш</a>
+  </div>
+</div>
+
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Закрыто инвестиций</div>
+    <div class="kpi-value">{{ total_closed|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">В переговорах / Term Sheet</div>
+    <div class="kpi-value">{{ total_pipeline|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Распределено по статьям</div>
+    <div class="kpi-value">{{ total_allocated|money_compact:active_company.currency_symbol }}</div>
+    <div class="kpi-meta">Освоено: <span class="num">{{ total_alloc_spent|money_compact:active_company.currency_symbol }}</span></div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Доля основателей</div>
+    <div class="kpi-value">{{ founders_equity }}%</div>
+    <div class="kpi-meta">Инвесторы: {{ investors_equity }}% &middot; ESOP: {{ esop_equity }}%</div>
+  </div>
+</section>
+
+<!-- Cap Table Strip -->
+<section class="panel" style="margin-bottom: 22px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+    <h2 class="panel-title">Структура акционерного капитала (Cap Table)</h2>
+    <div class="meta-inline">
+      <span>Основатели: <strong class="num">{{ founders_equity }}%</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Инвесторы: <strong class="num">{{ investors_equity }}%</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Опционный пул команды: <strong class="num">{{ esop_equity }}%</strong></span>
+    </div>
+  </div>
+  <div class="cap-bar">
+    <div class="cap-seg-founders" style="width: {{ founders_equity|clamp_pct }}%;"></div>
+    <div class="cap-seg-investors" style="width: {{ investors_equity|clamp_pct }}%;"></div>
+    <div class="cap-seg-esop" style="width: {{ esop_equity|clamp_pct }}%;"></div>
+  </div>
+</section>
+
+<!-- Funding Rounds -->
+<section class="panel" style="margin-bottom: 22px;">
+  <div class="panel-header">
+    <h2 class="panel-title">Инвестиционные раунды</h2>
+    <a href="{% url 'round_create' %}" class="btn btn-secondary btn-sm">Добавить раунд</a>
+  </div>
+
+  {% if rounds %}
+    <div style="overflow-x: auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Раунд</th>
+            <th>Инвестор</th>
+            <th>Дата</th>
+            <th>Статус</th>
+            <th class="text-right">Сумма</th>
+            <th class="text-right">Доля</th>
+            <th class="text-right">Pre-money</th>
+            <th class="text-right">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rounds %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ r.round_name }}</div>
+                <div class="meta-inline">{{ r.get_stage_display }}</div>
+              </td>
+              <td>{% if r.investor %}{{ r.investor.name }}{% else %}-{% endif %}</td>
+              <td class="num">{{ r.closed_date|date:'d.m.Y' }}</td>
+              <td>
+                <span class="{% if r.status == 'CLOSED' %}state-good{% elif r.status == 'TERM_SHEET' %}state-warn{% endif %}">
+                  {{ r.get_status_display }}
+                </span>
+              </td>
+              <td class="text-right num" style="font-weight: 600;">{{ r.amount|money:active_company.currency_symbol }}</td>
+              <td class="text-right num">{{ r.equity_percent }}%</td>
+              <td class="text-right num">{{ r.pre_money_valuation|money_compact:active_company.currency_symbol }}</td>
+              <td class="text-right">
+                <div class="row-actions">
+                  <a href="{% url 'round_edit' r.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                  {% url 'round_delete' r.id as del_url %}
+                  {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить раунд?" %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color: var(--ink-muted);">Раунды ещё не добавлены.</p>
+  {% endif %}
+</section>
+
+<!-- Investment Allocations -->
+<section class="panel" style="margin-bottom: 22px;">
+  <div class="panel-header">
+    <h2 class="panel-title">Распределение привлечённых инвестиций</h2>
+    <a href="{% url 'allocation_create' %}" class="btn btn-secondary btn-sm">Добавить направление</a>
+  </div>
+
+  {% if allocations %}
+    <div style="overflow-x: auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Направление и веха</th>
+            <th>Раунд</th>
+            <th class="text-right">Выделено</th>
+            <th class="text-right">Освоено</th>
+            <th style="min-width: 160px;">Прогресс освоения</th>
+            <th class="text-right">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in allocations %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ a.bucket_name }}</div>
+                <div class="meta-inline">
+                  <span>{{ a.get_category_display }}</span>
+                  {% if a.target_milestone %}
+                    <span aria-hidden="true">&middot;</span>
+                    <span>Веха: {{ a.target_milestone }}</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>{{ a.funding_round.round_name }} ({{ a.share_of_round_pct }}%)</td>
+              <td class="text-right num">{{ a.allocated_amount|money:active_company.currency_symbol }}</td>
+              <td class="text-right num">{{ a.spent_amount|money:active_company.currency_symbol }}</td>
+              <td>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                  <span>Освоение</span>
+                  <span class="num">{{ a.utilization_pct }}%</span>
+                </div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width: {{ a.utilization_pct|clamp_pct }}%;"></div>
+                </div>
+              </td>
+              <td class="text-right">
+                <div class="row-actions">
+                  <a href="{% url 'allocation_edit' a.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                  {% url 'allocation_delete' a.id as del_url %}
+                  {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить распределение?" %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color: var(--ink-muted);">Направления расходования инвестиций ещё не заданы.</p>
+  {% endif %}
+</section>
+
+<!-- Investors Directory -->
+<section class="panel">
+  <div class="panel-header">
+    <h2 class="panel-title">Реестр венчурных фондов и инвесторов</h2>
+    <a href="{% url 'investor_create' %}" class="btn btn-secondary btn-sm">Новый инвестор</a>
+  </div>
+
+  <form method="get" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Поиск фонда или контакта..." class="form-input" style="max-width: 280px;">
+    <select name="investor_type" class="form-select" style="max-width: 220px;">
+      <option value="">Все типы инвесторов</option>
+      {% for code, label in investor_types %}
+        <option value="{{ code }}" {% if selected_investor_type == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Найти</button>
+  </form>
+
+  {% if investors %}
+    <div class="grid-3">
+      {% for inv in investors %}
+        <div style="padding: 14px 16px; border: 1px solid var(--border-hairline); border-radius: var(--radius-sm);">
+          <div style="font-weight: 700; margin-bottom: 4px;">{{ inv.name }}</div>
+          <div class="meta-inline" style="margin-bottom: 8px;">
+            <span>{{ inv.get_investor_type_display }}</span>
+            {% if inv.typical_check %}
+              <span aria-hidden="true">&middot;</span>
+              <span class="num">{{ inv.typical_check }}</span>
+            {% endif %}
+          </div>
+          {% if inv.contact_name %}
+            <div style="font-size: 13px; color: var(--ink-secondary);">{{ inv.contact_name }}</div>
+          {% endif %}
+          {% if inv.email %}
+            <div style="font-size: 12.5px; color: var(--ink-muted);">{{ inv.email }}</div>
+          {% endif %}
+          {% if inv.notes %}
+            <p style="font-size: 12.5px; color: var(--ink-muted); margin: 8px 0 10px;">{{ inv.notes|truncatechars:110 }}</p>
+          {% endif %}
+          <div class="row-actions" style="justify-content: flex-start; margin-top: 8px;">
+            <a href="{% url 'investor_edit' inv.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+            {% url 'investor_delete' inv.id as del_url %}
+            {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить инвестора?" %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="color: var(--ink-muted);">Инвесторы не найдены.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Cap Table и вестинг - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Cap Table и вестинг{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'equity_holder_create' %}" class="btn btn-primary">Добавить участника</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Cap Table, вестинг и симулятор размытия</h1>
+    <p class="page-subtitle">Реестр долей, расчёт разблокированных опционов с учётом клиффа и моделирование нового раунда</p>
+  </div>
+</div>
+
+<section class="panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <h2 class="panel-title">Текущее распределение долей ({{ total_pct }}%)</h2>
+    <div class="meta-inline">
+      <span>Основатели: <strong class="num">{{ role_totals.FOUNDER }}%</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Инвесторы: <strong class="num">{{ role_totals.INVESTOR }}%</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>ESOP: <strong class="num">{{ role_totals.ESOP }}%</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Советники: <strong class="num">{{ role_totals.ADVISOR }}%</strong></span>
+    </div>
+  </div>
+
+  <div class="cap-bar" role="img" aria-label="Структура владения">
+    <div class="cap-seg-founders" style="width: {{ role_totals.FOUNDER|clamp_pct }}%;"></div>
+    <div class="cap-seg-investors" style="width: {{ role_totals.INVESTOR|clamp_pct }}%;"></div>
+    <div class="cap-seg-esop" style="width: {{ role_totals.ESOP|clamp_pct }}%;"></div>
+    <div class="cap-seg-advisors" style="width: {{ role_totals.ADVISOR|clamp_pct }}%;"></div>
+  </div>
+
+  {% if holder_rows %}
+    <div class="table-wrap" style="border: none; margin-top: 14px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Участник / фонд</th>
+            <th>Категория</th>
+            <th class="text-right">Доля</th>
+            <th>График вестинга</th>
+            <th class="text-right">Разблокировано (Vested)</th>
+            <th class="text-right">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in holder_rows %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ row.holder.name }}</div>
+                {% if row.holder.notes %}<div class="meta-inline">{{ row.holder.notes }}</div>{% endif %}
+              </td>
+              <td>{{ row.holder.get_role_display }}</td>
+              <td class="text-right num" style="font-weight: 700;">{{ row.holder.ownership_pct }}%</td>
+              <td>
+                {% if row.holder.vesting_months > 0 %}
+                  <div class="meta-inline" style="margin-bottom: 4px;">
+                    <span class="num">{{ row.holder.vesting_months }} мес.</span>
+                    <span aria-hidden="true">&middot;</span>
+                    <span>клифф <span class="num">{{ row.holder.cliff_months }}</span> мес.</span>
+                    <span aria-hidden="true">&middot;</span>
+                    <span class="num">{{ row.vesting.vested_ratio_pct }}%</span>
+                  </div>
+                  <div class="bar-track" style="max-width: 180px;">
+                    <div class="bar-fill good" style="width: {{ row.vesting.vested_ratio_pct }}%;"></div>
+                  </div>
+                {% else %}
+                  <span style="color: var(--ink-muted);">Без вестинга (100% сразу)</span>
+                {% endif %}
+              </td>
+              <td class="text-right num">
+                <span class="state-good">{{ row.vesting.vested_pct }}%</span>
+                {% if row.vesting.unvested_pct > 0 %}
+                  <div style="font-size: 11.5px; color: var(--ink-muted);">в вестинге: {{ row.vesting.unvested_pct }}%</div>
+                {% endif %}
+              </td>
+              <td class="text-right">
+                <div class="row-actions">
+                  <a href="{% url 'equity_holder_edit' row.holder.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                  {% url 'equity_holder_delete' row.holder.id as del_url %}
+                  {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить участника из Cap Table?" %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state" style="border: none;">
+      <h3>Реестр Cap Table пуст</h3>
+      <p>Добавьте основателей, инвесторов и опционный пул для расчёта вестинга и размытия раундов.</p>
+      <a href="{% url 'equity_holder_create' %}" class="btn btn-primary">Добавить участника</a>
+    </div>
+  {% endif %}
+</section>
+
+<!-- Round Dilution Simulator (Zero JS, Pure GET Form) -->
+<div class="grid-sim">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Симулятор следующего раунда</h2>
+    </div>
+    <form method="get" action="{% url 'cap_table' %}">
+      <div class="form-group">
+        <label for="sim-pre">Оценка Pre-money ({{ company.currency_symbol }})</label>
+        <input id="sim-pre" type="number" step="5000000" min="1000000" name="pre_money" value="{{ sim_pre_money }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-inv">Сумма инвестиций ({{ company.currency_symbol }})</label>
+        <input id="sim-inv" type="number" step="1000000" min="0" name="invest_amount" value="{{ sim_invest_amount }}" class="form-input num">
+      </div>
+      <div class="form-group">
+        <label for="sim-esop">Расширение пула ESOP (%)</label>
+        <input id="sim-esop" type="number" step="0.5" min="0" max="30" name="new_esop" value="{{ sim_new_esop }}" class="form-input num">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Рассчитать размытие</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Структура долей после раунда (Post-money)</h2>
+      <div class="meta-inline">
+        <span>Post-money: <strong class="num">{{ dilution.post_money|money_compact:company.currency_symbol }}</strong></span>
+        <span aria-hidden="true">&middot;</span>
+        <span>Доля нового инвестора: <strong class="num">{{ dilution.new_investor_pct }}%</strong></span>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="border: none;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Участник</th>
+            <th class="text-right">До раунда</th>
+            <th class="text-right">После раунда</th>
+            <th class="text-right">Изменение</th>
+            <th class="text-right">Оценка пакета</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in dilution.rows %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ r.name }}</div>
+                <div class="meta-inline">{{ r.role_label }}</div>
+              </td>
+              <td class="text-right num">{{ r.before_pct }}%</td>
+              <td class="text-right num" style="font-weight: 700;">{{ r.after_pct }}%</td>
+              <td class="text-right num {% if r.dilution_delta_pct < 0 %}state-risk{% elif r.dilution_delta_pct > 0 %}state-good{% endif %}">
+                {% if r.dilution_delta_pct > 0 %}+{% endif %}{{ r.dilution_delta_pct }}%
+              </td>
+              <td class="text-right num">{{ r.post_money_value|money_compact:company.currency_symbol }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}План бюджета{% endblock %}
+{% block breadcrumb %}План бюджета{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'budget_create' %}" class="btn btn-primary">Добавить статью</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Планирование бюджета</h1>
+    <p class="page-subtitle">Контроль план/факт по статьям и предупреждения о приближении к лимитам.</p>
+  </div>
+</div>
+
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Запланировано</div>
+    <div class="kpi-value">{{ total_planned|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Фактически израсходовано</div>
+    <div class="kpi-value">{{ total_spent|money_compact:active_company.currency_symbol }}</div>
+    <div class="kpi-meta">Освоение: <span class="num">{{ overall_pct }}%</span></div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Остаток лимита</div>
+    <div class="kpi-value {% if total_remaining < 0 %}state-risk{% endif %}">{{ total_remaining|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Статьи с превышением</div>
+    <div class="kpi-value {% if over_budget_count > 0 %}state-risk{% else %}state-good{% endif %}">{{ over_budget_count }}</div>
+  </div>
+</section>
+
+<form method="get" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="Поиск по статье или комментарию..." class="form-input search-field">
+  <select name="category" class="form-select">
+    <option value="">Все категории</option>
+    {% for code, label in categories %}
+      <option value="{{ code }}" {% if selected_category == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="period" class="form-select">
+    <option value="">Все периоды</option>
+    {% for p in periods %}
+      <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  <select name="sort" class="form-select">
+    <option value="-planned" {% if sort == '-planned' %}selected{% endif %}>По плану (убыв.)</option>
+    <option value="-spent" {% if sort == '-spent' %}selected{% endif %}>По факту (убыв.)</option>
+    <option value="-pct" {% if sort == '-pct' %}selected{% endif %}>По % освоения</option>
+    <option value="name" {% if sort == 'name' %}selected{% endif %}>По названию</option>
+  </select>
+  <button type="submit" class="btn btn-secondary">Применить</button>
+  {% if q or selected_category or selected_period %}
+    <a href="{% url 'budget_list' %}" class="btn btn-ghost">Сбросить</a>
+  {% endif %}
+</form>
+
+{% if rows %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Статья бюджета</th>
+          <th>Период</th>
+          <th class="text-right">План</th>
+          <th class="text-right">Факт</th>
+          <th class="text-right">Остаток</th>
+          <th style="min-width: 170px;">Освоение</th>
+          <th class="text-right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              <div style="font-weight: 600;">{{ row.item.name }}</div>
+              <div class="meta-inline">{{ row.item.get_category_display }}</div>
+            </td>
+            <td class="num">{{ row.item.period }}</td>
+            <td class="text-right num">{{ row.item.planned_amount|money:active_company.currency_symbol }}</td>
+            <td class="text-right num">{{ row.spent|money:active_company.currency_symbol }}</td>
+            <td class="text-right num {% if row.remaining < 0 %}state-risk{% endif %}">{{ row.remaining|money:active_company.currency_symbol }}</td>
+            <td>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                <span class="state-{{ row.state }}">{{ row.status_label }}</span>
+                <span class="num">{{ row.pct }}%</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill {{ row.state }}" style="width: {{ row.bar_width }}%;"></div>
+              </div>
+            </td>
+            <td class="text-right">
+              <div class="row-actions">
+                <a href="{% url 'budget_edit' row.item.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                {% url 'budget_delete' row.item.id as del_url %}
+                {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить статью бюджета?" %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>Статьи бюджета не найдены</h3>
+    <p>Добавьте плановые статьи бюджета на квартал или месяц, чтобы отслеживать план/факт.</p>
+    <a href="{% url 'budget_create' %}" class="btn btn-primary">Создать первую статью</a>
+  </div>
+{% endif %}
+{% endblock %}

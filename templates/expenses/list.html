@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Учёт расходов{% endblock %}
+{% block breadcrumb %}Расходы{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'expense_create' %}" class="btn btn-primary">Добавить расход</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Журнал расходов</h1>
+    <p class="page-subtitle">Операционные платежи, регулярные подписки и привязка к статьям бюджета.</p>
+  </div>
+  <a href="{% url 'expense_export_csv' %}?q={{ q }}&category={{ selected_category }}&status={{ selected_status }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort }}" class="btn btn-secondary">
+    Экспорт CSV
+  </a>
+</div>
+
+<section class="kpi-strip" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+  <div class="kpi-box">
+    <div class="kpi-label">Всего по выборке</div>
+    <div class="kpi-value">{{ filtered_total|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Оплачено</div>
+    <div class="kpi-value state-good">{{ paid_total|money_compact:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Ожидает оплаты</div>
+    <div class="kpi-value state-warn">{{ pending_total|money_compact:active_company.currency_symbol }}</div>
+  </div>
+</section>
+
+<form method="get" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="Поиск по расходу или контрагенту..." class="form-input search-field">
+  <select name="category" class="form-select">
+    <option value="">Все категории</option>
+    {% for code, label in categories %}
+      <option value="{{ code }}" {% if selected_category == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" class="form-select">
+    <option value="">Любой статус</option>
+    {% for code, label in statuses %}
+      <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" value="{{ date_from }}" class="form-input" title="Дата с">
+  <input type="date" name="date_to" value="{{ date_to }}" class="form-input" title="Дата по">
+  <select name="sort" class="form-select">
+    <option value="-expense_date" {% if sort == '-expense_date' %}selected{% endif %}>Сначала новые</option>
+    <option value="expense_date" {% if sort == 'expense_date' %}selected{% endif %}>Сначала старые</option>
+    <option value="-amount" {% if sort == '-amount' %}selected{% endif %}>Сумма (убыв.)</option>
+    <option value="amount" {% if sort == 'amount' %}selected{% endif %}>Сумма (возр.)</option>
+  </select>
+  <button type="submit" class="btn btn-secondary">Фильтровать</button>
+  {% if q or selected_category or selected_status or date_from or date_to %}
+    <a href="{% url 'expense_list' %}" class="btn btn-ghost">Сбросить</a>
+  {% endif %}
+</form>
+
+{% if page_obj.object_list %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Наименование и контрагент</th>
+          <th>Категория / Статья</th>
+          <th>Ответственный</th>
+          <th>Статус</th>
+          <th class="text-right">Сумма</th>
+          <th class="text-right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in page_obj %}
+          <tr>
+            <td class="num" style="white-space: nowrap;">{{ exp.expense_date|date:'d.m.Y' }}</td>
+            <td>
+              <div style="font-weight: 600;">{{ exp.title }}</div>
+              <div class="meta-inline">
+                {% if exp.vendor %}<span>{{ exp.vendor }}</span>{% endif %}
+                {% if exp.is_recurring %}
+                  {% if exp.vendor %}<span aria-hidden="true">&middot;</span>{% endif %}
+                  <span>Регулярный</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <div>{{ exp.get_category_display }}</div>
+              {% if exp.budget_item %}
+                <div class="meta-inline">{{ exp.budget_item.name|truncatechars:42 }}</div>
+              {% endif %}
+            </td>
+            <td>{% if exp.responsible %}{{ exp.responsible.full_name }}{% else %}<span style="color: var(--ink-muted);">-</span>{% endif %}</td>
+            <td>
+              <span class="{% if exp.status == 'PAID' %}state-good{% elif exp.status == 'PENDING' %}state-warn{% else %}meta-inline{% endif %}">
+                {{ exp.get_status_display }}
+              </span>
+            </td>
+            <td class="text-right num" style="font-weight: 600; white-space: nowrap;">{{ exp.amount|money:active_company.currency_symbol }}</td>
+            <td class="text-right">
+              <div class="row-actions">
+                {% if exp.status != 'PAID' %}
+                  <form method="post" action="{% url 'expense_mark_paid' exp.id %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">Оплачен</button>
+                  </form>
+                {% endif %}
+                <a href="{% url 'expense_edit' exp.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                {% url 'expense_delete' exp.id as del_url %}
+                {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить запись расхода?" %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'includes/_pagination.html' %}
+{% else %}
+  <div class="empty-state">
+    <h3>Расходы не найдены</h3>
+    <p>Запишите первый расход или сбросьте фильтры выборки.</p>
+    <a href="{% url 'expense_create' %}" class="btn btn-primary">Добавить расход</a>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ task.title }}{% endblock %}
+{% block breadcrumb %}Задачи / #{{ task.id }}{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'task_edit' task.id %}" class="btn btn-primary">Редактировать</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ task.title }}</h1>
+    <div class="meta-inline" style="margin-top: 6px;">
+      <span>Статус: <strong>{{ task.get_status_display }}</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span class="{% if task.priority == 'CRITICAL' %}state-risk{% elif task.priority == 'HIGH' %}state-warn{% endif %}">Приоритет: {{ task.get_priority_display }}</span>
+      {% if task.assignee %}
+        <span aria-hidden="true">&middot;</span>
+        <span>Исполнитель: {{ task.assignee.full_name }}</span>
+      {% endif %}
+      {% if task.due_date %}
+        <span aria-hidden="true">&middot;</span>
+        <span class="num {% if task.is_overdue %}state-risk{% endif %}">Срок: {{ task.due_date|date:'d.m.Y' }}</span>
+      {% endif %}
+      <span aria-hidden="true">&middot;</span>
+      <span class="num">{{ task.estimated_hours }} ч.</span>
+    </div>
+  </div>
+  <div class="row-actions">
+    <a href="{% url 'task_list' %}" class="btn btn-secondary">К доске задач</a>
+    {% url 'task_delete' task.id as del_url %}
+    {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить задачу?" %}
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Описание и перевод статуса</h2>
+    </div>
+    <p style="margin: 0 0 18px; white-space: pre-line; color: var(--ink-secondary);">
+      {{ task.description|default:'Описание не указано.' }}
+    </p>
+    <div style="border-top: 1px solid var(--border-hairline); padding-top: 14px;">
+      <div style="font-size: 12.5px; color: var(--ink-muted); margin-bottom: 8px;">Быстрая смена статуса:</div>
+      <div class="row-actions" style="justify-content: flex-start; flex-wrap: wrap;">
+        {% for st_code, st_label in statuses %}
+          <form method="post" action="{% url 'task_change_status' task.id %}" class="inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="{{ st_code }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn {% if st_code == task.status %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+              {{ st_label }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Комментарии ({{ comments|length }})</h2>
+    </div>
+    {% if comments %}
+      <div style="margin-bottom: 18px;">
+        {% for c in comments %}
+          <div class="activity-item" style="flex-direction: column; gap: 4px;">
+            <div class="meta-inline">
+              <strong style="color: var(--ink-primary);">{% if c.author %}{{ c.author.get_full_name|default:c.author.username }}{% else %}Пользователь{% endif %}</strong>
+              <span aria-hidden="true">&middot;</span>
+              <span class="num">{{ c.created_at|date:'d.m.Y H:i' }}</span>
+            </div>
+            <div style="font-size: 13.5px; color: var(--ink-secondary);">{{ c.body }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--ink-muted); margin-bottom: 16px;">Комментариев пока нет.</p>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="{{ comment_form.body.id_for_label }}">Новый комментарий</label>
+        {{ comment_form.body }}
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Отправить</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

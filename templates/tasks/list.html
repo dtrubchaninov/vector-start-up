@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}Командные задачи{% endblock %}
+{% block breadcrumb %}Командные задачи{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'task_create' %}" class="btn btn-primary">Создать задачу</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Управление задачами команды</h1>
+    <p class="page-subtitle">Спринты, приоритеты, исполнители и переходы по этапам выполнения.</p>
+  </div>
+  <div class="segmented" role="tablist" aria-label="Режим просмотра">
+    <a href="?view=board&q={{ q }}&priority={{ selected_priority }}&assignee={{ selected_assignee }}{% if overdue_only %}&overdue=1{% endif %}" class="{% if view_mode != 'list' %}active{% endif %}">Kanban-board</a>
+    <a href="?view=list&q={{ q }}&priority={{ selected_priority }}&assignee={{ selected_assignee }}{% if overdue_only %}&overdue=1{% endif %}" class="{% if view_mode == 'list' %}active{% endif %}">Таблица</a>
+  </div>
+</div>
+
+<form method="get" class="filter-bar">
+  <input type="hidden" name="view" value="{{ view_mode }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="Поиск по названию или спринту..." class="form-input search-field">
+  <select name="assignee" class="form-select">
+    <option value="">Все исполнители</option>
+    {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if selected_assignee == emp.id|stringformat:'s' %}selected{% endif %}>{{ emp.full_name }}</option>
+    {% endfor %}
+  </select>
+  <select name="priority" class="form-select">
+    <option value="">Любой приоритет</option>
+    {% for code, label in priorities %}
+      <option value="{{ code }}" {% if selected_priority == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-secondary); cursor: pointer;">
+    <input type="checkbox" name="overdue" value="1" {% if overdue_only %}checked{% endif %}>
+    Только просроченные
+  </label>
+  <button type="submit" class="btn btn-secondary">Применить</button>
+  {% if q or selected_priority or selected_assignee or overdue_only %}
+    <a href="{% url 'task_list' %}?view={{ view_mode }}" class="btn btn-ghost">Сбросить</a>
+  {% endif %}
+</form>
+
+{% if view_mode == 'list' %}
+  {% if tasks %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Задача</th>
+            <th>Исполнитель</th>
+            <th>Приоритет</th>
+            <th>Статус</th>
+            <th>Срок</th>
+            <th class="text-right">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in tasks %}
+            <tr>
+              <td>
+                <a href="{% url 'task_detail' task.id %}" style="font-weight: 600; color: var(--ink-primary);">{{ task.title }}</a>
+                {% if task.milestone %}<div class="meta-inline">{{ task.milestone }}</div>{% endif %}
+              </td>
+              <td>{% if task.assignee %}{{ task.assignee.full_name }}{% else %}-{% endif %}</td>
+              <td>
+                <span class="{% if task.priority == 'CRITICAL' %}state-risk{% elif task.priority == 'HIGH' %}state-warn{% endif %}">
+                  {{ task.get_priority_display }}
+                </span>
+              </td>
+              <td>{{ task.get_status_display }}</td>
+              <td class="num {% if task.is_overdue %}state-risk{% endif %}">
+                {% if task.due_date %}{{ task.due_date|date:'d.m.Y' }}{% else %}-{% endif %}
+              </td>
+              <td class="text-right">
+                <div class="row-actions">
+                  <a href="{% url 'task_detail' task.id %}" class="btn btn-ghost btn-sm">Открыть</a>
+                  <a href="{% url 'task_edit' task.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>Задачи не найдены</h3>
+      <p>Создайте новую задачу или измените параметры фильтрации.</p>
+      <a href="{% url 'task_create' %}" class="btn btn-primary">Создать задачу</a>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="kanban-grid">
+    {% for col in columns %}
+      <section class="kanban-col" aria-label="{{ col.label }}">
+        <div class="kanban-col-header">
+          <span>{{ col.label }}</span>
+          <span class="num" style="color: var(--ink-muted);">{{ col.count }}</span>
+        </div>
+
+        <div class="kanban-list">
+          {% for task in col.tasks %}
+            <article class="task-card">
+              <a href="{% url 'task_detail' task.id %}" class="task-card-title">{{ task.title }}</a>
+              <div class="meta-inline">
+                <span class="{% if task.priority == 'CRITICAL' %}state-risk{% elif task.priority == 'HIGH' %}state-warn{% endif %}">
+                  {{ task.get_priority_display }}
+                </span>
+                {% if task.milestone %}
+                  <span aria-hidden="true">&middot;</span>
+                  <span>{{ task.milestone }}</span>
+                {% endif %}
+              </div>
+              <div class="meta-inline" style="margin-top: 4px;">
+                <span>{% if task.assignee %}{{ task.assignee.full_name }}{% else %}Не назначен{% endif %}</span>
+                {% if task.due_date %}
+                  <span aria-hidden="true">&middot;</span>
+                  <span class="num {% if task.is_overdue %}state-risk{% endif %}">{{ task.due_date|date:'d.m.Y' }}</span>
+                {% endif %}
+              </div>
+
+              <div class="task-move-row">
+                {% for st_code, st_label in statuses %}
+                  {% if st_code != task.status %}
+                    <form method="post" action="{% url 'task_change_status' task.id %}" class="inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="status" value="{{ st_code }}">
+                      <button type="submit" class="task-move-btn">→ {{ st_label }}</button>
+                    </form>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </article>
+          {% empty %}
+            <div style="font-size: 12.5px; color: var(--ink-muted); padding: 12px 4px;">Нет задач</div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

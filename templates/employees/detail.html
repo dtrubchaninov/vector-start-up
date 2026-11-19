@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}{{ employee.full_name }}{% endblock %}
+{% block breadcrumb %}Команда / {{ employee.full_name }}{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'employee_edit' employee.id %}" class="btn btn-primary">Редактировать</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ employee.full_name }}</h1>
+    <div class="meta-inline" style="margin-top: 4px;">
+      <span>{{ employee.position }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>{{ employee.get_department_display }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span class="{% if employee.status == 'ACTIVE' %}state-good{% elif employee.status == 'ONBOARDING' %}state-warn{% endif %}">{{ employee.get_status_display }}</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>В команде с {{ employee.hired_at|date:'d.m.Y' }}</span>
+    </div>
+  </div>
+  <a href="{% url 'employee_list' %}" class="btn btn-secondary">К списку команды</a>
+</div>
+
+<section class="kpi-strip" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+  <div class="kpi-box">
+    <div class="kpi-label">Ежемесячный оклад</div>
+    <div class="kpi-value">{{ employee.monthly_salary|money:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Опционный пакет</div>
+    <div class="kpi-value">{{ employee.equity_options_pct }}%</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Контакты</div>
+    <div style="font-size: 14px; font-weight: 600;">{{ employee.email|default:'-' }}</div>
+    <div class="kpi-meta">{{ employee.phone|default:'Телефон не указан' }}</div>
+  </div>
+</section>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Назначенные задачи</h2>
+      <a href="{% url 'task_create' %}" class="btn btn-ghost btn-sm">Новая задача</a>
+    </div>
+    {% if tasks %}
+      {% for t in tasks %}
+        <div class="activity-item">
+          <div>
+            <a href="{% url 'task_detail' t.id %}" style="font-weight: 600; color: var(--ink-primary);">{{ t.title }}</a>
+            <div class="meta-inline">{{ t.get_status_display }} &middot; {{ t.get_priority_display }}</div>
+          </div>
+          <span class="num" style="font-size: 12.5px;">{% if t.due_date %}{{ t.due_date|date:'d.m.Y' }}{% else %}-{% endif %}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p style="color: var(--ink-muted);">Назначенных задач нет.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Расходы под ответственностью</h2>
+    </div>
+    {% if expenses %}
+      {% for e in expenses %}
+        <div class="activity-item">
+          <div>
+            <div style="font-weight: 600;">{{ e.title }}</div>
+            <div class="meta-inline">{{ e.expense_date|date:'d.m.Y' }} &middot; {{ e.get_status_display }}</div>
+          </div>
+          <span class="num" style="font-weight: 600;">{{ e.amount|money:active_company.currency_symbol }}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p style="color: var(--ink-muted);">Записанных расходов нет.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}Сотрудники и ФОТ{% endblock %}
+{% block breadcrumb %}Команда и ФОТ{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'employee_create' %}" class="btn btn-primary">Добавить сотрудника</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Команда, оклады и опционы</h1>
+    <p class="page-subtitle">Штатная структура, ежемесячный фонд оплаты труда и опционный пул (ESOP).</p>
+  </div>
+</div>
+
+<section class="kpi-strip" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+  <div class="kpi-box">
+    <div class="kpi-label">Активных сотрудников</div>
+    <div class="kpi-value">{{ active_count }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Ежемесячный ФОТ</div>
+    <div class="kpi-value">{{ total_payroll|money:active_company.currency_symbol }}</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Выделено опционов (ESOP)</div>
+    <div class="kpi-value">{{ total_esop }}%</div>
+  </div>
+</section>
+
+{% if dept_summary %}
+<section class="panel" style="margin-bottom: 18px;">
+  <div class="meta-inline" style="gap: 18px;">
+    <strong style="color: var(--ink-primary);">ФОТ по отделам:</strong>
+    {% for d in dept_summary %}
+      <span>{{ d.label }}: <strong class="num">{{ d.headcount }} чел.</strong> ({{ d.payroll|money_compact:active_company.currency_symbol }})</span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<form method="get" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="Поиск по ФИО, должности, email..." class="form-input search-field">
+  <select name="department" class="form-select">
+    <option value="">Все отделы</option>
+    {% for code, label in departments %}
+      <option value="{{ code }}" {% if selected_department == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" class="form-select">
+    <option value="">Все статусы</option>
+    {% for code, label in statuses %}
+      <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="sort" class="form-select">
+    <option value="full_name" {% if sort == 'full_name' %}selected{% endif %}>По имени (А–Я)</option>
+    <option value="-monthly_salary" {% if sort == '-monthly_salary' %}selected{% endif %}>Оклад (убыв.)</option>
+    <option value="-hired_at" {% if sort == '-hired_at' %}selected{% endif %}>Сначала новые</option>
+  </select>
+  <button type="submit" class="btn btn-secondary">Применить</button>
+  {% if q or selected_department or selected_status %}
+    <a href="{% url 'employee_list' %}" class="btn btn-ghost">Сбросить</a>
+  {% endif %}
+</form>
+
+{% if employees %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Сотрудник</th>
+          <th>Отдел</th>
+          <th>Контакты</th>
+          <th>Статус</th>
+          <th class="text-right">Открытые задачи</th>
+          <th class="text-right">Опционы</th>
+          <th class="text-right">Оклад / мес</th>
+          <th class="text-right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+          <tr>
+            <td>
+              <a href="{% url 'employee_detail' emp.id %}" style="font-weight: 600; color: var(--ink-primary);">{{ emp.full_name }}</a>
+              <div class="meta-inline">{{ emp.position }}</div>
+            </td>
+            <td>{{ emp.get_department_display }}</td>
+            <td>
+              <div style="font-size: 13px;">{{ emp.email|default:'-' }}</div>
+              {% if emp.phone %}<div class="meta-inline">{{ emp.phone }}</div>{% endif %}
+            </td>
+            <td>
+              <span class="{% if emp.status == 'ACTIVE' %}state-good{% elif emp.status == 'ONBOARDING' %}state-warn{% else %}meta-inline{% endif %}">
+                {{ emp.get_status_display }}
+              </span>
+            </td>
+            <td class="text-right num">{{ emp.open_tasks_count }}</td>
+            <td class="text-right num">{{ emp.equity_options_pct }}%</td>
+            <td class="text-right num" style="font-weight: 600;">{{ emp.monthly_salary|money:active_company.currency_symbol }}</td>
+            <td class="text-right">
+              <div class="row-actions">
+                <a href="{% url 'employee_edit' emp.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                {% url 'employee_delete' emp.id as del_url %}
+                {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить сотрудника?" %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>Сотрудники не найдены</h3>
+    <p>Добавьте основателей и членов команды для учёта ФОТ, опционов и назначения задач.</p>
+    <a href="{% url 'employee_create' %}" class="btn btn-primary">Добавить сотрудника</a>
+  </div>
+{% endif %}
+{% endblock %}

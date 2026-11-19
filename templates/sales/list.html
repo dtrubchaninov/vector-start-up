@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load startup_tags %}
+
+{% block title %}CRM-воронка продаж - {{ company.name }}{% endblock %}
+{% block breadcrumb %}CRM-воронка продаж{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'deal_export_csv' %}" class="btn btn-secondary">Экспорт CSV</a>
+  <a href="{% url 'deal_create' %}" class="btn btn-primary">Новая сделка</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">CRM-воронка B2B продаж</h1>
+    <p class="page-subtitle">Управление сделками, взвешенный прогноз выручки и быстрое перемещение по этапам</p>
+  </div>
+  <div class="segmented" aria-label="Режим отображения">
+    <a href="{% url 'sales_pipeline' %}?view=board{% if q %}&q={{ q|urlencode }}{% endif %}{% if stage_filter %}&stage={{ stage_filter }}{% endif %}" class="{% if view_mode != 'list' %}active{% endif %}">Kanban</a>
+    <a href="{% url 'sales_pipeline' %}?view=list{% if q %}&q={{ q|urlencode }}{% endif %}{% if stage_filter %}&stage={{ stage_filter }}{% endif %}" class="{% if view_mode == 'list' %}active{% endif %}">Таблица</a>
+  </div>
+</div>
+
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Открытый пайплайн</div>
+    <div class="kpi-value">{{ metrics.open_pipeline_total|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">Активных сделок: <span class="num">{{ metrics.open_deals_count }}</span></div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Взвешенный прогноз</div>
+    <div class="kpi-value">{{ metrics.weighted_pipeline|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">С учётом вероятности закрытия</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Закрыто сделок (Won)</div>
+    <div class="kpi-value">{{ metrics.won_deals_count }}</div>
+    <div class="kpi-meta">Конверсия (Win Rate): <span class="num">{{ metrics.win_rate_pct }}%</span></div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">MRR-эквивалент закрытых</div>
+    <div class="kpi-value">{{ metrics.won_monthly_equivalent|money_compact:company.currency_symbol }}</div>
+    <div class="kpi-meta">Регулярная выручка в месяц</div>
+  </div>
+</section>
+
+<form method="get" class="filter-bar">
+  <input type="hidden" name="view" value="{{ view_mode }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Поиск по клиенту, контакту, заметкам..." class="form-input search-field">
+  <select name="stage" class="form-select">
+    <option value="">Все этапы</option>
+    {% for code, label in stage_choices %}
+      <option value="{{ code }}" {% if stage_filter == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Применить</button>
+  {% if q or stage_filter %}<a href="{% url 'sales_pipeline' %}?view={{ view_mode }}" class="btn btn-ghost">Сбросить</a>{% endif %}
+</form>
+
+{% if view_mode == 'list' %}
+  {% if deals %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Клиент</th>
+            <th>Этап</th>
+            <th class="text-right">Сумма</th>
+            <th class="text-right">Вероятность</th>
+            <th>Оплата</th>
+            <th>Срок закрытия</th>
+            <th>Ответственный</th>
+            <th class="text-right">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in deals %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ d.client_name }}</div>
+                {% if d.contact_name %}<div class="meta-inline">{{ d.contact_name }}{% if d.contact_email %} &middot; {{ d.contact_email }}{% endif %}</div>{% endif %}
+              </td>
+              <td><span class="{% if d.stage == 'WON' %}state-good{% elif d.stage == 'LOST' %}state-risk{% elif d.stage == 'CONTRACT' %}state-warn{% endif %}">{{ d.get_stage_display }}</span></td>
+              <td class="text-right num" style="font-weight: 600;">{{ d.amount|money:company.currency_symbol }}</td>
+              <td class="text-right num">{{ d.probability }}%</td>
+              <td>{{ d.get_billing_type_display }}</td>
+              <td class="num">{% if d.expected_close_date %}{{ d.expected_close_date|date:'d.m.Y' }}{% else %}&mdash;{% endif %}</td>
+              <td>{% if d.owner %}{{ d.owner.full_name }}{% else %}&mdash;{% endif %}</td>
+              <td class="text-right">
+                <div class="row-actions">
+                  <a href="{% url 'deal_edit' d.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                  {% url 'deal_delete' d.id as del_url %}
+                  {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить сделку?" %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>Сделок пока нет</h3>
+      <p>Добавьте первого потенциального B2B-клиента, чтобы отслеживать воронку продаж.</p>
+      <a href="{% url 'deal_create' %}" class="btn btn-primary">Добавить сделку</a>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="kanban-grid-6">
+    {% for col in columns %}
+      <section class="kanban-col">
+        <div class="kanban-col-header">
+          <span>{{ col.label }} ({{ col.deals|length }})</span>
+          <span class="num" style="font-size: 12px; color: var(--ink-muted);">{{ col.total_amount|money_compact:company.currency_symbol }}</span>
+        </div>
+        <div class="kanban-list">
+          {% for d in col.deals %}
+            <article class="task-card">
+              <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline;">
+                <a href="{% url 'deal_edit' d.id %}" class="task-card-title">{{ d.client_name }}</a>
+                <span class="num" style="font-weight: 700; font-size: 13px; white-space: nowrap;">{{ d.amount|money_compact:company.currency_symbol }}</span>
+              </div>
+              <div class="meta-inline">
+                <span>{{ d.get_billing_type_display }}</span>
+                <span aria-hidden="true">&middot;</span>
+                <span class="num">{{ d.probability }}%</span>
+                {% if d.expected_close_date %}
+                  <span aria-hidden="true">&middot;</span>
+                  <span class="num">{{ d.expected_close_date|date:'d.m' }}</span>
+                {% endif %}
+              </div>
+              {% if d.contact_name %}
+                <div style="font-size: 12px; color: var(--ink-secondary); margin-top: 6px;">{{ d.contact_name }}</div>
+              {% endif %}
+              <div class="task-move-row">
+                {% for st_code, st_label in stage_choices %}
+                  {% if st_code != d.stage %}
+                    <form method="post" action="{% url 'deal_change_stage' d.id %}" class="inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="stage" value="{{ st_code }}">
+                      <button type="submit" class="task-move-btn">&rarr; {{ st_label }}</button>
+                    </form>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </article>
+          {% empty %}
+            <div style="font-size: 12.5px; color: var(--ink-muted); padding: 8px 4px;">Нет сделок на этом этапе</div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

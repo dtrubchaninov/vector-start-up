@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Гипотезы роста (ICE) - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Гипотезы роста (ICE){% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'experiment_create' %}" class="btn btn-primary">Новая гипотеза</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Бэклог гипотез роста (ICE-скоринг)</h1>
+    <p class="page-subtitle">Приоритизация продуктовых и маркетинговых экспериментов по формуле (Impact + Confidence + Ease) / 3</p>
+  </div>
+</div>
+
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Всего гипотез</div>
+    <div class="kpi-value">{{ total_count }}</div>
+    <div class="kpi-meta">Отсортированы по убыванию ICE</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">В активном тесте</div>
+    <div class="kpi-value state-warn">{{ running_count }}</div>
+    <div class="kpi-meta">Запущенные эксперименты</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Подтверждены</div>
+    <div class="kpi-value state-good">{{ validated_count }}</div>
+    <div class="kpi-meta">Успешные гипотезы роста</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Доля подтверждённых</div>
+    <div class="kpi-value">{{ success_rate }}%</div>
+    <div class="kpi-meta">Среди завершённых тестов</div>
+  </div>
+</section>
+
+<div class="filter-bar">
+  <div class="segmented">
+    <a href="{% url 'experiment_list' %}" class="{% if not status_filter %}active{% endif %}">Все</a>
+    {% for code, label in status_choices %}
+      <a href="{% url 'experiment_list' %}?status={{ code }}" class="{% if status_filter == code %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if experiments %}
+  <div class="stack-14">
+    {% for exp in experiments %}
+      <article class="panel">
+        <div style="display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 260px;">
+            <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+              <h2 style="font-size: 16px; font-weight: 700;">{{ exp.title }}</h2>
+              <span class="{% if exp.status == 'VALIDATED' %}state-good{% elif exp.status == 'RUNNING' %}state-warn{% elif exp.status == 'REJECTED' %}state-risk{% endif %}" style="font-size: 12.5px;">
+                {{ exp.get_status_display }}
+              </span>
+            </div>
+            <p style="margin: 6px 0 8px; color: var(--ink-secondary);">{{ exp.hypothesis }}</p>
+            <div class="meta-inline">
+              <span>Метрика: <strong>{{ exp.target_metric }}</strong></span>
+              <span aria-hidden="true">&middot;</span>
+              <span>Impact <strong class="num">{{ exp.impact }}</strong> / Confidence <strong class="num">{{ exp.confidence }}</strong> / Ease <strong class="num">{{ exp.ease }}</strong></span>
+              {% if exp.owner %}
+                <span aria-hidden="true">&middot;</span>
+                <span>{{ exp.owner.full_name }}</span>
+              {% endif %}
+            </div>
+            {% if exp.outcome_note %}
+              <div style="margin-top: 8px; font-size: 13px; color: var(--ink-primary);">
+                <strong>Итог:</strong> {{ exp.outcome_note }}
+              </div>
+            {% endif %}
+          </div>
+
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--ink-muted); font-weight: 600;">ICE Score</div>
+            <div class="num" style="font-size: 26px; font-weight: 700; color: var(--accent);">{{ exp.ice_score }}</div>
+          </div>
+        </div>
+
+        <div class="task-move-row" style="justify-content: space-between; align-items: center;">
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {% for st_code, st_label in status_choices %}
+              {% if st_code != exp.status %}
+                <form method="post" action="{% url 'experiment_status' exp.id %}" class="inline-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="{{ st_code }}">
+                  <button type="submit" class="task-move-btn">&rarr; {{ st_label }}</button>
+                </form>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="row-actions">
+            <a href="{% url 'experiment_edit' exp.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+            {% url 'experiment_delete' exp.id as del_url %}
+            {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить гипотезу?" %}
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>Гипотез пока нет</h3>
+    <p>Зафиксируйте первую идею роста и оцените её по шкале ICE (влияние, уверенность, простота).</p>
+    <a href="{% url 'experiment_create' %}" class="btn btn-primary">Добавить гипотезу</a>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Дорожная карта - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Дорожная карта{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'milestone_create' %}" class="btn btn-primary">Новая веха</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Квартальная дорожная карта (Roadmap)</h1>
+    <p class="page-subtitle">Стратегические цели компании по кварталам с интерактивными чек-листами</p>
+  </div>
+</div>
+
+<section class="kpi-strip">
+  <div class="kpi-box">
+    <div class="kpi-label">Всего вех</div>
+    <div class="kpi-value">{{ total_count }}</div>
+    <div class="kpi-meta">Запланированных и активных</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Средняя готовность</div>
+    <div class="kpi-value">{{ avg_progress }}%</div>
+    <div class="kpi-meta">По всем вехам компании</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Выполнено</div>
+    <div class="kpi-value state-good">{{ completed_count }}</div>
+    <div class="kpi-meta">Закрытые стратегические цели</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-label">Под риском</div>
+    <div class="kpi-value {% if at_risk_count > 0 %}state-risk{% else %}state-good{% endif %}">{{ at_risk_count }}</div>
+    <div class="kpi-meta">Требуют вмешательства основателя</div>
+  </div>
+</section>
+
+<form method="get" class="filter-bar">
+  <select name="quarter" class="form-select">
+    <option value="">Все кварталы</option>
+    {% for q in quarters %}
+      <option value="{{ q }}" {% if quarter_filter == q %}selected{% endif %}>{{ q }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" class="form-select">
+    <option value="">Все статусы</option>
+    {% for code, label in status_choices %}
+      <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Фильтровать</button>
+  {% if quarter_filter or status_filter %}<a href="{% url 'roadmap_list' %}" class="btn btn-ghost">Сбросить</a>{% endif %}
+</form>
+
+{% if grouped %}
+  <div class="stack-20">
+    {% for grp in grouped %}
+      <section class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Квартал {{ grp.quarter }}</h2>
+          <span class="meta-inline">{{ grp.items|length }} вех</span>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 0;">
+          {% for ms in grp.items %}
+            <article class="panel" style="padding: 16px 18px; background: var(--bg-canvas);">
+              <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 6px;">
+                <div>
+                  <h3 style="font-size: 15px; font-weight: 700;">{{ ms.title }}</h3>
+                  <div class="meta-inline" style="margin-top: 3px;">
+                    <span>{{ ms.get_category_display }}</span>
+                    <span aria-hidden="true">&middot;</span>
+                    <span class="{% if ms.status == 'COMPLETED' %}state-good{% elif ms.status == 'AT_RISK' %}state-risk{% elif ms.status == 'IN_PROGRESS' %}state-warn{% endif %}">{{ ms.get_status_display }}</span>
+                    {% if ms.due_date %}
+                      <span aria-hidden="true">&middot;</span>
+                      <span class="num">до {{ ms.due_date|date:'d.m.Y' }}</span>
+                    {% endif %}
+                    {% if ms.owner %}
+                      <span aria-hidden="true">&middot;</span>
+                      <span>{{ ms.owner.full_name }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <span class="num" style="font-size: 15px; font-weight: 700;">{{ ms.progress_percent }}%</span>
+              </div>
+
+              <div class="bar-track" style="margin-bottom: 8px;">
+                <div class="bar-fill {% if ms.status == 'AT_RISK' %}risk{% elif ms.progress_percent >= 75 %}good{% endif %}" style="width: {{ ms.progress_percent }}%;"></div>
+              </div>
+
+              {% if ms.summary %}
+                <p style="margin: 0 0 10px; font-size: 13px; color: var(--ink-secondary);">{{ ms.summary }}</p>
+              {% endif %}
+
+              <ul class="checklist">
+                {% for item in ms.checklist_items.all %}
+                  <li class="check-row">
+                    <form method="post" action="{% url 'milestone_check_toggle' item.id %}" class="inline-form">
+                      {% csrf_token %}
+                      <button type="submit" class="check-toggle-btn {% if item.is_done %}is-done{% endif %}" aria-label="Переключить пункт">
+                        {% if item.is_done %}&check;{% endif %}
+                      </button>
+                    </form>
+                    <span class="check-label {% if item.is_done %}is-done{% endif %}">{{ item.title }}</span>
+                  </li>
+                {% empty %}
+                  <li style="font-size: 12.5px; color: var(--ink-muted);">Пункты чек-листа ещё не добавлены.</li>
+                {% endfor %}
+              </ul>
+
+              <form method="post" action="{% url 'milestone_check_add' ms.id %}" class="quick-add-row">
+                {% csrf_token %}
+                <input type="text" name="title" placeholder="Добавить пункт в чек-лист..." class="form-input" style="padding: 6px 10px; font-size: 12.5px;">
+                <button type="submit" class="btn btn-secondary btn-sm">Добавить</button>
+              </form>
+
+              <div class="task-move-row" style="justify-content: space-between; align-items: center;">
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                  {% for st_code, st_label in status_choices %}
+                    {% if st_code != ms.status %}
+                      <form method="post" action="{% url 'milestone_status' ms.id %}" class="inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="{{ st_code }}">
+                        <button type="submit" class="task-move-btn">&rarr; {{ st_label }}</button>
+                      </form>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                <div class="row-actions">
+                  <a href="{% url 'milestone_edit' ms.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                  {% url 'milestone_delete' ms.id as del_url %}
+                  {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить веху?" %}
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>Дорожная карта пока пуста</h3>
+    <p>Добавьте ключевые квартальные цели по продукту, выручке и привлечению раунда.</p>
+    <a href="{% url 'milestone_create' %}" class="btn btn-primary">Создать первую веху</a>
+  </div>
+{% endif %}
+{% endblock %}

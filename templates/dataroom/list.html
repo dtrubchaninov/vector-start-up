@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Data Room - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Data Room{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'data_room_create' %}" class="btn btn-primary">Добавить документ</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Data Room для инвесторов и совета директоров</h1>
+    <p class="page-subtitle">Реестр ключевых материалов компании, контроль версий и готовность к Due Diligence</p>
+  </div>
+</div>
+
+<section class="panel" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 8px; flex-wrap: wrap;">
+    <div>
+      <h2 class="panel-title">Готовность к Due Diligence инвесторов</h2>
+      <div class="meta-inline" style="margin-top: 2px;">
+        <span>Готово <strong class="num">{{ readiness.ready_investor_docs }}</strong> из <strong class="num">{{ readiness.total_investor_docs }}</strong> инвесторских документов</span>
+        <span aria-hidden="true">&middot;</span>
+        <span>Всего документов в хранилище: <strong class="num">{{ total_docs }}</strong></span>
+      </div>
+    </div>
+    <span class="num {% if readiness.readiness_pct >= 80 %}state-good{% elif readiness.readiness_pct >= 50 %}state-warn{% else %}state-risk{% endif %}" style="font-size: 24px; font-weight: 700;">
+      {{ readiness.readiness_pct }}%
+    </span>
+  </div>
+  <div class="bar-track" style="height: 10px;">
+    <div class="bar-fill {% if readiness.readiness_pct >= 80 %}good{% elif readiness.readiness_pct >= 50 %}warn{% else %}risk{% endif %}" style="width: {{ readiness.readiness_pct }}%;"></div>
+  </div>
+</section>
+
+<form method="get" class="filter-bar">
+  <select name="category" class="form-select">
+    <option value="">Все разделы</option>
+    {% for code, label in category_choices %}
+      <option value="{{ code }}" {% if cat_filter == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="access" class="form-select">
+    <option value="">Любой доступ</option>
+    {% for code, label in access_choices %}
+      <option value="{{ code }}" {% if access_filter == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Применить</button>
+  {% if cat_filter or access_filter %}<a href="{% url 'data_room_list' %}" class="btn btn-ghost">Сбросить</a>{% endif %}
+</form>
+
+{% if docs %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Документ</th>
+          <th>Раздел</th>
+          <th>Доступ</th>
+          <th>Версия</th>
+          <th>Статус</th>
+          <th>Обновлён</th>
+          <th class="text-right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in docs %}
+          <tr>
+            <td>
+              <div style="font-weight: 600;">
+                {% if doc.doc_url %}
+                  <a href="{{ doc.doc_url }}" rel="noopener noreferrer">{{ doc.title }}</a>
+                {% else %}
+                  {{ doc.title }}
+                {% endif %}
+              </div>
+              {% if doc.summary %}<div class="meta-inline">{{ doc.summary }}</div>{% endif %}
+            </td>
+            <td>{{ doc.get_category_display }}</td>
+            <td>{{ doc.get_access_level_display }}</td>
+            <td class="num">{{ doc.version_label }}</td>
+            <td>
+              <span class="{% if doc.status == 'READY' %}state-good{% elif doc.status == 'UPDATING' %}state-warn{% else %}{% endif %}">
+                {{ doc.get_status_display }}
+              </span>
+            </td>
+            <td class="num">{{ doc.updated_at|date:'d.m.Y' }}</td>
+            <td class="text-right">
+              <div class="row-actions">
+                {% if doc.status != 'READY' %}
+                  <form method="post" action="{% url 'data_room_status' doc.id %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="READY">
+                    <button type="submit" class="btn btn-secondary btn-sm">Готов</button>
+                  </form>
+                {% endif %}
+                <a href="{% url 'data_room_edit' doc.id %}" class="btn btn-ghost btn-sm">Изменить</a>
+                {% url 'data_room_delete' doc.id as del_url %}
+                {% include 'includes/_confirm_delete.html' with action_url=del_url message="Удалить документ из Data Room?" %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>Data Room пока пуст</h3>
+    <p>Добавьте питч-дек, финансовую модель, учредительные документы и реестр контрактов.</p>
+    <a href="{% url 'data_room_create' %}" class="btn btn-primary">Добавить первый документ</a>
+  </div>
+{% endif %}
+{% endblock %}

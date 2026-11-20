@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Поиск - {{ company.name }}{% endblock %}
+{% block breadcrumb %}Поиск{% endblock %}
+{% block topbar_action %}
+  <a href="{% url 'dashboard' %}" class="btn btn-secondary">На дашборд</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Поиск по рабочему пространству</h1>
+    <p class="page-subtitle">Мгновенный поиск по задачам, сделкам, счетам, расходам, команде, KPI, вехам, гипотезам и документам</p>
+  </div>
+</div>
+
+<form method="get" action="{% url 'global_search' %}" class="filter-bar">
+  <input
+    type="search"
+    name="q"
+    value="{{ q }}"
+    placeholder="Введите название сделки, задачи, документа, сотрудника или статьи..."
+    class="form-input search-field"
+    autofocus
+  >
+  <button type="submit" class="btn btn-primary">Найти</button>
+</form>
+
+{% if q %}
+  {% if results %}
+    <section class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Найдено записей: <span class="num">{{ results|length }}</span></h2>
+        <span style="font-size: 12.5px; color: var(--ink-muted);">Запрос: «{{ q }}»</span>
+      </div>
+      <div>
+        {% for item in results %}
+          <div class="activity-item">
+            <div>
+              <span style="font-size: 12px; font-weight: 600; color: var(--ink-muted);">{{ item.section }}</span>
+              <span aria-hidden="true" style="color: var(--ink-muted);">&middot;</span>
+              <a href="{% url item.url_name item.arg %}" style="font-weight: 600; color: var(--ink-primary);">{{ item.title }}</a>
+            </div>
+            <span style="font-size: 12.5px; color: var(--ink-muted); white-space: nowrap;">{{ item.meta }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
+    <div class="empty-state">
+      <h3>Ничего не найдено по запросу «{{ q }}»</h3>
+      <p>Попробуйте сократить запрос или проверьте другую активную компанию в боковой панели.</p>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty-state">
+    <h3>Введите поисковый запрос</h3>
+    <p>Поиск охватывает все разделы активной компании «{{ company.name }}».</p>
+  </div>
+{% endif %}
+{% endblock %}
